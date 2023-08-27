@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NORMAL_COLOR='\033[0m'
+OUTPUT_FILE="output"
+IP=""
+FULL=false
+UDP=false
+TCP=false
+OS=false
+MODE="S"
+DISCOVERY=false
+ATTACK=false
+
+# Helper functions
+error(){
+    printf "${RED}$1${NORMAL_COLOR}"
+    exit 2
+}
+
+print_header(){
+    printf "${GREEN}--------------------\n"
+    printf "${GREEN}$1${NORMAL_COLOR}\n"
+}
+
+run_command(){
+    printf "\n\n" >> $OUTPUT_FILE
+    printf "${GREEN}--------------------\n"
+    printf "${GREEN}$1\n"
+    printf "${GREEN}***Executing command: $2 ${NORMAL_COLOR}\n"
+    $2 | tee -a $OUTPUT_FILE || error "Failed executing $1"
+}
+
+print_usage(){
+    printf "Usage: scan [OPTIONS]\n"
+    printf "\t-h\t\tprint this help message\n"
+    printf "\t-u\t\tperform udp scan\n"
+    printf "\t-a\t\tperform attack with default scripts\n"
+    printf "\t-t\t\tperform tcp scan\n"
+    printf "\t-f\t\tfull scans\n"
+    printf "\t-d\t\tdiscovery mode (only -i and -o relevant)\n"
+    printf "\t-v\t\tscan for OS version\n"
+    printf "\t-o FILENAME\tredirect output to FILENAME\n"
+    printf "\t-i IP\t\tscan specified IP\n"
+    printf "\t-m MODE\t\ttcp scan mode\n"
+}
+
+
+# Perform TCP scan
+tcp_scan(){
+    if [ $FULL = true ]
+    then
+        # Full scan
+        run_command "Full TCP scan" "nmap  -p- -s${MODE} ${IP}"
+    else
+        # Default scan
+        run_command "Default TCP scan" "nmap  -s${MODE} ${IP}"
+    fi
+}
+
+# Perform UDP scan
+udp_scan(){
+    if [ $FULL = true ]
+    then
+        # Perform UDP scan
+        run_command "Full UDP scan" "nmap -sU  -p- $IP --max-rtt-timeout 20ms --max-retries 0"
+    else
+        # Perform UDP scan
+        run_command "Default UDP scan" "nmap -sU  $IP --max-rtt-timeout 20ms --max-retries 0"
+    fi
+}
+
+# Discover hosts in the network
+discovery(){
+    run_command "Scanning network" "nmap -sn  $IP"
+    exit 0
+}
+
+attack(){
+    print_header "Starting to attack discovered ports"
+    PORTS=$(cat $OUTPUT_FILE | grep open | cut -d " " -f 1,2,3,4 | grep tcp | sort | uniq | cut -d "/" -f 1)
+    
+    for p in $PORTS
+    do
+        run_command "Testing port $p" "nmap  -sC -p$p $IP"
+    done
+}
+
+while getopts 'avdhuftm:o:i:' flag; do
+    case "${flag}" in
+        u) UDP=true ;;
+        t) TCP=true ;;
+        f) FULL=true ;;
+        o) OUTPUT_FILE="${OPTARG}" ;;
+        i) IP="${OPTARG}" ;;
+        v) OS=true ;;
+        a) ATTACK=true ;;
+        d) DISCOVERY=true ;;
+        m) MODE="${OPTARG}"; TCP=true ;;
+        h|*) print_usage && exit 1 ;;
+    esac
+done
+
+[ -z $IP ] && error "You must specify an ip address"
+
+echo "" > $OUTPUT_FILE
+
+[ $DISCOVERY = true ] && discovery
+
+
+[ $OS = true ] && run_command "First scan and os version" "nmap  -O -sV $IP"
+
+[ $TCP = true ] && tcp_scan
+
+[ $UDP = true ] && udp_scan
+
+print_header "Scanning results:\n"
+cat $OUTPUT_FILE | grep open | awk '{ print $1 " " $2 " " $3 }' | sort | uniq
+
+[ $ATTACK = true ] && attack

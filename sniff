@@ -1,0 +1,38 @@
+#!/bin/bash
+
+FIRST_IP=""
+SECOND_IP=""
+FILE="output"
+IFACE="wlo1"
+MODE="arp"
+
+print_usage(){
+    printf "Usage: sniff [OPTIONS]\n"
+    printf "\t-h\t\tprint this help message\n"
+    printf "\t-1 IP\t\tspecify first IP address\n"
+    printf "\t-2 IP\t\tspecify second IP address\n"
+    printf "\t-o FILE\t\twrite output to FILE\n"
+    printf "\t-i IFACE\twhich interface to listen on\n"
+    printf "\t-m MODE\t\twhat mode to use for mitm (default is arp)\n"
+}
+
+error(){
+    printf "${RED}$1${NORMAL_COLOR}"
+    exit 2
+}
+
+while getopts 'h1:2:o:i:m:' flag; do
+    case "${flag}" in
+        1) FIRST_IP="${OPTARG}" ;;
+        2) SECOND_IP="${OPTARG}" ;;
+        o) FILE="${OPTARG}" ;;
+        i) IFACE="${OPTARG}" ;;
+        m) MODE="${OPTARG}" ;;
+        h|*) print_usage && exit 1 ;;
+    esac
+done
+
+[ -z $FIRST_IP ] && error "You must specify both ip addresses"
+[ -z $SECOND_IP ] && error "You must specify both ip addresses"
+
+ettercap -T -i $IFACE -w $FILE -M $MODE /$FIRST_IP/// /$SECOND_IP/// || error "Failed executing ettercap"

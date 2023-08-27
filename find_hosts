@@ -1,0 +1,64 @@
+#!/bin/bash
+
+IP=""
+RED='\033[0;31m'
+NORMAL_COLOR='\033[0m'
+GREEN='\033[0;32m'
+OLD_HOSTS=""
+NEW_HOSTS=""
+FILE=""
+
+print_usage(){
+    printf "Usage: find_hosts [OPTIONS]\n"
+    printf "\t-h\t\tprint this help message\n"
+    printf "\t-f FILE\t\tget old IP addresses from FILE\n"
+    printf "\t-i IP\t\tscan specified IP\n"
+}
+
+error(){
+    printf "${RED}$1${NORMAL_COLOR}"
+    exit 2
+}
+
+print_header(){
+    printf "${GREEN}--------------------\n"
+    printf "${GREEN}$1${NORMAL_COLOR}\n"
+}
+
+scan(){
+    nmap -sn  $IP | grep report | awk '{print $5}' | sort
+}
+
+
+while getopts 'hi:f:' flag; do
+    case "${flag}" in
+        i) IP="${OPTARG}" ;;
+        f) FILE="${OPTARG}" ;;
+        h|*) print_usage && exit 1 ;;
+    esac
+done
+
+[ -z $IP ] && error "You must specify an ip address"
+
+if [ -z $FILE ]
+then
+    print_header "First scan:"
+    OLD_HOSTS=$(scan)
+else
+    print_header "Retrieving hosts from file:"
+    OLD_HOSTS=$(cat $FILE | sort)
+fi
+
+echo "Hosts found:"
+echo $OLD_HOSTS | tr ' ' '\n'
+
+[ -z $FILE ] && read -p "Press enter to continue"
+
+print_header "Second scan:"
+NEW_HOSTS=$(scan)
+
+echo "Hosts found:"
+echo $NEW_HOSTS | tr ' ' '\n'
+
+print_header "New hosts:"
+echo $NEW_HOSTS | tr ' ' '\n' | grep -v -x -f <(echo $OLD_HOSTS | tr ' ' '\n') | sort
