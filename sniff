@@ -2,7 +2,7 @@
 
 FIRST_IP=""
 SECOND_IP=""
-FILE="output"
+FILE="output.pcap"
 IFACE="wlo1"
 MODE="arp"
 
